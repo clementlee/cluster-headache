@@ -35,7 +35,7 @@ Especially in increasingly distributed systems, attaining sublinear results in s
 This gives a description of the overarching challenges of parallelization, and creates a framework for parallel learning.
 
 Multiple forms of parallelism exist, as are described in \emph{On Model Parallelization and Scheduling Strategies for Distributed Machine Learning} \cite{lee2014model}.
-This paper lays out the differences between model and data parallelism, and discuss the difficulties of applying both in varying degrees to deep learning.
+This paper lays out the differences between model and data parallelism, and discusses the difficulties of applying both in varying degrees to deep learning.
 It develops a language for efficient partitioning of training and updating parameters, particularly regarding scheduling of gradient calculations across a distributed network of participating servers.
 In general, we aim to build on its usage of \emph{model parallelism}: that is, the splitting of model parameters across multiple computing devices.
 
@@ -80,6 +80,22 @@ This could later progress towards a network that starts out in a minimal state a
 As we are aiming more towards an algorithmic problem, we aim to test on a dataset that is more commonly used.
 In the forefront here is MNIST, a large publicly available dataset of handwritten digits that represents a common benchmark for image classification.
 We plan to take a relatively standard ConvNet architecture, and apply our algorithm to perform modifications automatically.
+At the same time, MNIST is comparatively an extremely small dataset with very low resolution, so it may be necessary to perform experiments on larger networks to achieve better parallelization results.
+We intend to do development on MNIST due to physical constraints, but we would like to explore larger datasets, time permitting.
+
+\subsection{Important Milestones}
+In general, we aim to fulfill the rough schedule outlined below.
+The dates are approximate and are chosen according to either formal deadlines or seminar meeting times.
+This also represents a relatively ambitious timeline; ample time is left towards the latter half of the schedule to allow for corrections.
+\begin{description}
+  \item[1 Mar] Complete implementation of Optimal Brain Damage algorithm
+  \item[8 Mar] Investigate feasibility of removing large sets of weights and test out weight-picking heuristic
+  \item[15 Mar] Figure out MNIST dataset and current network architectures for handling it
+  \item[22 Mar] Checkpoint -- have a working prototype of the algorithm and be apply it to the MNIST dataset
+  \item[29 Mar] Test on larger datasets and structures, such as ImageNet
+  \item[15 Apr] Investigate feasibility of constructively rather than destructively generating partitions
+  \item[29 Apr] Finish final report and polish remaining code
+\end{description}
 
 %Evaluation. Describe the methodology you plan to use to evaluate how well your project has achieved the stated goal.  Be specific.  What data will you use?  What test will you run?  What quantitative metric will you use to measure success?  etc.  This is a very important and often over-looked aspect of a project plan – please think about it before finalizing your project selection.
 \section{Evaluation}
