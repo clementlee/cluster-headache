@@ -1,2 +1,2 @@
-# cluster-headache
+# optimal-lobotomy 
 Independent Work Spring 2016
