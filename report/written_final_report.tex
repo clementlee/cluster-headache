@@ -6,6 +6,7 @@
 \usepackage{graphicx}
 \usepackage{amsmath}
 \usepackage{amssymb}
+\usepackage{siunitx}
 
 \graphicspath{{pictures/}}
 % Include other packages here, before hyperref.
@@ -29,9 +30,9 @@
 \title{Optimal Lobotomy}
 
 \author{Clement Lee\\
-Princeton University\\
-{\tt\small clem@princeton.edu}\\
-\emph{advised by Jianxiong Xiao}
+  Princeton University\\
+  {\tt\small clem@princeton.edu}\\
+  \emph{advised by Jianxiong Xiao}
 }
 \maketitle
 %\thispagestyle{empty}
@@ -39,15 +40,17 @@ Princeton University\\
 %%%%%%%%% ABSTRACT
 \begin{abstract}
   We highlight common works in the field of neural network optimization, and present our own findings on weight deletion methodologies.
-  We experiment with Optimal Brain Damage and weight thresholding, and achieve a 20-fold reduction on the parameter space of VGG-16 with no loss in performance.
-  
+  We resurface older works on weight pruning and discuss their applicability and limitations to modern networks.
+  We propose utilizing a blend of algorithms to form the basis of our testing.
+  Experiments with Optimal Brain Damage and weight thresholding, and achieve a 20-fold reduction on the parameter space of VGG-16 with no loss in performance.
+  On smaller problems, we are further able to show demonstrated and repeatable improvements on generalization error.
 \end{abstract}
 
 %%%%%%%%% BODY TEXT
 \section{Introduction}
 
 Deep learning techniques abound in the modern literature, with a primary focus on achieving higher and higher levels of accuracy.
-In general, models have been getting increasingly larger to accommodate improvements in techniques, and computational costs of machine learning have been rising accordingly.
+In general, models have become increasingly larger to accommodate improvements in techniques, and computational costs of machine learning have risen accordingly.
 Pointedly, the rate of development of deep learning models has far outstripped actual hardware improvements.
 Specialized techniques are being continually introduced to handle bigger models, such as in Dean et al \cite{dean2012large}, who construct a distributed deep learning system.
 However, due to fundamental restrictions in the basic architecture, the optimal node count for their system is relatively low, and scaling is a continual problem that requires careful tuning of parameters.
@@ -108,7 +111,9 @@ This requires both a reduction in linked computation (that requires expensive sy
 With that aim in mind, we focus in this paper on reducing the parameter space and not explicitly on the split process, which we leave to further investigation.
 
 \section{Weight Deletion}
-We explore the 
+As automated weight deletion is not a common topic in the contemporary deep learning literature, we resurface some older works and discuss their usability in modern frameworks.
+We explore the complexity and necessity of each approach, noting that prior works have generally focused on extremely minimal cases where each weight had a significant impact on the final output of the network.
+This assumption is known to be inconsistent with larger networks such as VGGnet and AlexNet, so we explore how the modified constraints change the optimality or performance of each algorithm.
 \subsection{Optimal Brain Damage}
 In terms of early results in weight removal, LeCun et al \cite{lecun1989optimal} construct the optimal brain damage algorithm, which utilizes the diagonal elements of the parameter's Hessian matrix (second derivatives) to calculate an approximation of the effect of each weight.
 They hypothesize that the non-diagonal elements are likely to be 0, and generally unimportant.
@@ -132,16 +137,32 @@ We, however, take note of their analyses, which note that OBD and weight magnitu
 As such, we rely on the overarching ideas on the weight deletion framework to motivate our findings, but our intention is to extend it to larger networks.
 \subsection{Weight Thresholding}
 We propose a simpler methodology, inspired by the assumption that weights are generally plentiful and can be reduced \emph{en masse} before any significant impact is made on the network.
+Our algorithm iteratively deletes weights on basis of low magnitude and retrains the network.
+We allow remaining weights to be trained to values lower than the threshold as well, but they will be removed from the network on the next iteration of the algorithm.
+This allows the training algorithm the ability in essence to mark certain weights as less important and ready for deletion.
+
 Simple investigation on the distribution of network weights indicated that the mean was roughly around 0, but that the standard deviation was in fact very low.
 This indicated that there were large numbers of weights that had been trained to extremely low values, so we hypothesize that they can likely be removed from the network entirely.
 This was explored in earlier works but the approximation does not hold as well for smaller networks.
-Smaller weights can also still have 
+Smaller weights can also still have high saliency, due to the high nonlinearity of deeper networks, by the same principle as the ``butterfly effect''.
+Thus, we aim to explore how this possibility actually manifests in modern networks.
 
-Importantly, it is an etremely
+Importantly, weight thresholding is an extremely performant method with a number of key benefits.
+Firstly, the OBD algorithm requires iteration over the dataset in order to generate its error gradient.
+This means that it must do a costly gradient sum over the entire dataset, which we note can generally result in weaker gradient calculations (due to the extreme stability).
+This is effectively the same as running a minibatch equivalent to the entire dataset, which has been noted by Zhang et al \cite{zhang2013asynchronous} to be a poor methodology for any sort of training.
+It is intuitively logical that this limitation would also apply to the overall error gradient as proposed by OBD.
+The solution to this is to calculate the saliency of a weight based on minibatch size, but this runs into generalization issues and is thus a costly exploration that requires human intervention, a key parameter we wish to avoid.
 
-As the 
+Weight thresholding, in contrast, can be performed with only the network and no knowledge of the dataset.
+This independence on the data also allows easier targeting, and avoids the issue of extremely small gradients in the earlier layers.
+Furthermore, it also works in tandem with modern literature on the benefits of L1 and L2 regularization, which indicate that the weights of a network should generally follow certain linear constraints.
+All in all, we believe that our weight thresholding method should produce results comparable to OBD on larger networks with a dramatically decreased computational cost.
+
 \section{Experiments}
 We run two primary experiments, one with the full OBD algorithm, and one based on our proposal algorithm.
+We are able to avoid the issues with OBD mentioned above for the first experiment by reducing our network and dataset size, so we show it as an example of the capability of the algorithm.
+Due to limitations in experimentation time, we are unable to run this same algorithm on our larger experiment, for which we rely on the weight thresholding.
 
 \subsection{Small network}
 As the OBD algorithm is rather computationally expensive, we try a smaller sample test on a fully-connected network.
@@ -151,11 +172,11 @@ This gives us a trained MSE of 0.047, recalling that for this specific training 
 For our experiments on this network, we incrementally delete weights one by one (from a total of 481 parameters).
 
 For this to be run efficiently, we utilize common $\epsilon$-approximations of the gradient, which introduce small amounts of floating-point error into the calculation, but are generally considered small enough not to impact calculations significantly.
-These are inspired by similar results as implemented in Torch, the software package we use to 
+These are inspired by similar results as implemented in Torch, the software package we use to perform our experiments.
 
 \paragraph{Without retraining} Our first experiment is in simply deleting weights without retraining the network at all, simply to see how the weights are used.
-The results are shown in Figure~\ref{fig:sin-no}, and as predicted, the 
-Notably, the 
+The results are shown in Figure~\ref{fig:sin-no}, and as predicted, the error steadily rises until it hits a point of random categorization.
+It is a potential point of interest that the error actually spikes above 0.5, but we believe that this is likely just due to random occurrence and did not investigate this phenomenon further, though it occurred on multiple runs on the same data.
 
 \begin{figure}[h]
   \centering
@@ -164,10 +185,13 @@ Notably, the
   \label{fig:sin-no}
 \end{figure}
 
+Notably, the error is entirely constant even without retraining for almost half of the capacity of the network, and even with three-quarters of the network deleted, it is still relatively accurate.
+Qualititatively, we were able to see that the network generally began to fail in its confidence of predictions, but the general shape of the output was still sinusoidal.
+That is, values tending to either -1 or 1 had significantly more error than values with lower magnitude.
+This is expected, given that the activation function chosen, $\tanh$, will only return higher values with correspondingly large inputs.
 
 \paragraph{With retraining} As our primary goal is not to merely investigate the importance of each weight but also how they affect the overall \emph{learning capacity} of the network, we run a secondary experiment by allowing the network 100 iterations (again with batches of 10000) after each weight deletion.
 This allows for significantly better results, which are shown in Figure~\ref{fig:sin-with}.
-
 
 \begin{figure}[h]
   \centering
@@ -184,10 +208,10 @@ This is a point of potential future exploration, as it is well-known that many n
 Smaller networks are known to generally converge faster with larger perturbations on each weight, so the change of being forced into a local minima is much smaller.
 Typical stochastic gradient descent methodologies are intended to avoid or ``speed past'' local minima in search of better parameters, but many techniques are in fact designed specifically to solve the problem of slow convergence (and thus poor training error) in large networks.
 
-On the flip side, we can also see that there is a point beyond around 450 deletions where the network simply loses all ability to perform its task, and no amount of retraining (even performed after this experiment) is able to get it to regain a reasonable amount of performance.
+On the other hand, we can also see that there is a point beyond around 450 deletions where the network simply loses all ability to perform its task, and no amount of retraining (even performed after this experiment) is able to get it to regain a reasonable amount of performance.
 This is particularly fascinating because it is a sudden jump from performance that was still reasonably good (around 0.07).
 This suggests that there is a fundamental \emph{maximum learning capacity} of a network, which in this case is oversaturated by the problem at 30 weights.
-Further investigation of this point is an interesting topic as it may reveal what kinds of network architectures are entirely necessary for different kinds of problems.
+Further investigation of this point is an interesting topic as it may reveal what kinds of network architectures are fundamentally necessary for different kinds of problems.
 
 \subsection{CIFAR-10 and VGGnet}
 We perform a variety of experiments on a network based on VGG-16 and trained on CIFAR-10, a common convolutional network dataset and benchmark.
@@ -209,9 +233,66 @@ We note that we are able to delete over 87\% of the weights without having any v
 This represents over 120 million deleted weights from an original network size of 138 million parameters, which indicates the viability of our methodology.
 
 \paragraph{Top-$k$ thresholding}
-Unfortunately, weight-based thresholding is largely imprecise in the number of weights deleted, making it difficult to quantize actual improvements rigorously without accidentally overstepping
+Unfortunately, weight-based thresholding is largely imprecise in the number of weights deleted, making it difficult to quantize actual improvements rigorously without accidentally overstepping some capacity of the network.
+Though our initial tests proved very satisfactory with magnitude-based thresholding, extending it further meant that suddenly large components of the network were entirely neutered, and this could often lead to rather precipitous drops in performance.
+To combat this problem, we changed our approach to instead focus on the percentile of each weight relative to the network, and deleted the top $k$ nonzero parameters during each pass, allowing us to clearly and gradually iterate over the total weight distribution.
+We present our findings in Figure~\ref{fig:vgg-top-k}.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{cifar-top-k.pdf}
+  \caption{Weight deletion using top-$k$ thresholding.}
+  \label{fig:vgg-top-k}
+\end{figure}
+
+We are able to achieve our intended goal, as it can be seen that test set error largely fluctuates between each deletion, and in fact stays relatively high.
+We suffer from some minor decreases in performance, which we hypothesize is due to hyperparameter suboptimality.
+In addition, we only allow a single epoch of retraining between each weight deletion, which is rather limited and thus may be a factor in the decreased performance.
+We note that the general trend of performance is still maintained.
+After our reudction of the network to only 5\% of its original size, our final accuracy is 90.89\%.
+By a few more epochs of retraining, we are able to bring this accuracy up to 91.6\%, which is still a highly competitive accuracy rate on CIFAR-10 with regards to many modern algorithms.
+
+As an example, we run the above experiment but with a reduced learning rate.
+This results in slightly reduced performance across the board, but we also note that this introduces some extra stability into the test set accuracy.
+We hypothesize that this indicates that better hyperparameters would thus be able to help improve this gap, and perhaps return back to the 92\% range for which the original network is able to perform on.
+We also retrain this network, and are able to attain an accuracy of 91.48\% without significant human intervention on hyperparameter tuning.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{cifar-learn-rate.pdf}
+  \caption{Performance using different learning rates.}
+  \label{fig:vgg-learn}
+\end{figure}
+
+The original algorithm to produce the baseline network had a learning rate as low as \num{1e-7}, which we were unable to explore in greater depth due to the extremely slow rate of improvement.
+However, it is notable that the network achieved around 91.8\% if simply for one iteration at learning rate \num{1e-10} in its full capacity, so we believe that with additional training, the 20-fold reduced network we produce in these experiments could easily match the performance of the full network.
+
+Interestingly, while the test set accuracy was mostly stable, the training set accuracy had a steady decline as we removed parameters from the network.
+Originally, it had peaked at 99.7\% (beyond which improvements are likely just random), down to 95\% for our 20-fold reduced network.
+The corresponding fact that the test set accuracy did not face a similar decline provides evidence for our original hypothesis that reduced networks may in fact generalize better, and we see here that there may be additional room to continue training our network for improved performance.
+
+With the intent of exploring how far we can take our algorithm, we prune our network iteratively down to a mere 1\% of its original size, and allow for three epochs of retraining between each batch of weight deletion.
+This is meant to stretch the weight-deletion to its limits, and iteratively determine the fundamental limit to the network on this problem.
+We present our findings in Figure~\ref{fig:vgg-extreme}.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{cifar-top-k-extreme.pdf}
+  \caption{Weight-deletion to extremely small network.}
+  \label{fig:vgg-extreme}
+\end{figure}
+
+Here we finally note our significant drop in classification accuracy, but we can also see that the performance stays above 90\% until about 97.75\% of the weights are deleted, at which point we have seen a 45-fold decrease in the size of the network.
+This is itself an impressive result, and we continue to reduce the network until we have removed 99\% of the weights..
+Because of cumulative floating-point rounding error in our deletion algorithm, this is actually 99.24\% of the weights deleted (corresponding to a 131-fold decrease in the size of the network).
+Our classification accuracy here is  82.94\%, but with progressive retraining of 50 epochs, we are able to bring this network back to 88.43\% accuracy, which is still relatively good on this problem and comparable to results for contemporary new architectures.
 
 \subsection{Discussion}
+Our fully-reduced and retrained network with only 0.76\% of its original weights provides us an interesting basis on which to explore some statistical properties of the network.
+Firstly, at this point of reduction, the training error and the test error are effectively the same, indicating that generalization has reached its reasonable maximum point.
+Additionally, we attempted further retraining of the network, but began to see evidence of potential overfitting, as the network's training error would decrease without any improvement in test error.
+This ia potential further area of research, as the network at this point is so small that its capacity to learn on the CIFAR-10 dataset may be hitting a limit.
+
 We analyze the distribution of weight deletion as applied by our algorithm, and show these results in Figure~\ref{fig:vgg-histo}.
 We note that the early weights are very rarely deleted, which makes sense, as the early weights are the crucial convolutional layers which effectively preprocess the information.
 The majority of the weights in VGG-16 are in the fully-connected layers, and we note that this is also where the rate of deletion is the highest.
@@ -228,6 +309,7 @@ This suggests that common architectures may have far larger fully-connected laye
 It is also important to note that in a convolutional layer, all of the weights are shared between every image patch the convolution is run on, so the weights are individually far more important.
 In addition, the feature maps generated are crucial to the whole implementation of convolutional networks, so it is logical for their deletion rate to be far lower.
 At the same time, however, it is interesting that almost 90\% of the weights are still being deleted from these early layers.
+
 \section{Future Work}
 We have demonstrated the potential for both weight deletion algorithms to reduce network capacity hugely without reducing accuracy.
 However, because of algorithmic and computational limitations at the current moment, we are not able to apply the OBD algorithm in full to the larger networks.
@@ -237,16 +319,33 @@ We observe that weight thresholding can delete parameters incorrectly as we aim 
 We would also like to explore the possibility of using our reduced sparse network to create a partitioning: multiple fast approximate graph partitioning methods exist, and would be well suited to separating the layers into distinct and rarely-connected components.
 This would allow us to achieve better space savings in practice, as we can then remove neurons as well as weights.
 Furthermore, this would allow us to extend our work onto multiple GPUs and apply model parallelization to test our split network.
+Splitting a network is also dependent heavily on the convolutional layers, which we treat relatively naively in our current work.
+It is perhaps more important to treat the feature map as a whole, and remove entire channels of output rather than simply deleting from the convolution kernel itself, and we would like to explore this further.
 
 It is also important to test additional datasets; CIFAR-10 is one of the easier benchmarks, chosen for speed of training and ease of use.
 However, we would also like to explore the applicability of our algorithm to CIFAR-100, ILSVRC-2012, and others, for which there is perhaps a fundamentally lower limit to the number of parameters that may be deleted from the network.
 
+Finally, we believe that this can be combined with an iterative construction algorithm to allow a network to slowly build and remove its own architecture as needed to solve the problem.
+On the basis of the uneven weight distribution as shown in Figure~\ref{fig:vgg-histo}, we believe that it should be possible for a network to rebalance itself appropriately such that the weights are properly allocated to optimize performance.
+It is additionally a topic of interest to see whether an automatically created network can achieve comparable performance, both in classification and speed, to modern architectures.
+
 \section{Conclusion}
+Our weight deletion policy is able to reduce a network down to 5\% of its original capacity without impacting performance in any meaningful way, and down to less than 1\% while maintaining reasonably competitive performance.
+We believe that this represents a novel approach to constructing efficient deep learning algorithms, which have largely been built on the basis of careful human consideration.
+To remove this overhead, which we believe is as significant as hyperparameter tuning, we see that weight deletion policies can achieve reductions in parameter space which are as significant as other designed networks.
+
+We apply our methodology to multiple networks and are able to observe promising behaviors in terms of generalization capacity as well as architecture-specific optimization.
+Our methodology promotes network efficiency, and is easily extensible to various kinds of network topologies.
+Furthermore, it allows us to quickly perform this operation on a pretrained network, allowing us to better utilize the existing work in the literature without necessitating a complex new training schematic.
+
+Experiments demonstrate not only the effectiveness of our methodology but also highlight a number of potential paths of future exploration which are seem very promising.
+It is our belief that this new methodology can be a useful new addition to current deep learning tools to promote productive training.
+We note that detailed understanding of specific network architecture choices have largely been influenced by human design and general heuristics, and that algorithms such as our proposal can produce better statistical information on such designs.
 {\small
-\bibliographystyle{ieee}
-%just cite everything -- REMOVE LATER
-\nocite{*}
-\bibliography{ref}
+  \bibliographystyle{ieee}
+  %just cite everything -- REMOVE LATER
+  \nocite{*}
+  \bibliography{ref}
 }
 
 \end{document}
